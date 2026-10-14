@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS face_embeddings (
     embedding BLOB NOT NULL,
     dim INTEGER NOT NULL,
     fuente TEXT NOT NULL DEFAULT 'foto',
+    photo_path TEXT,                            -- foto de enrolamiento (data/photos/..., fuera del repo)
     creado TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -165,6 +166,14 @@ class Database:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = _connect(self.path)
         self._conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Agrega columnas nuevas a bases creadas con versiones anteriores."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(face_embeddings)").fetchall()}
+        if "photo_path" not in cols:
+            self._conn.execute("ALTER TABLE face_embeddings ADD COLUMN photo_path TEXT")
+            self._conn.commit()
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:

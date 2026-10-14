@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # Asistente conversacional (Claude)
     anthropic_api_key: str | None = None
+    anthropic_workspace_id: str | None = None  # sólo si la clave no está asociada a un workspace
     claude_model: str = "claude-opus-5-5"
     claude_effort: str = "low"
     claude_max_tokens: int = 2048

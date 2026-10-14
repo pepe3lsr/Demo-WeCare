@@ -77,7 +77,7 @@ class IdentityService:
         return f"{QR_PREFIX}{rid}:{pin}"
 
     # ------------------------------------------------------------------ enrolamiento
-    def enroll(self, rid: str, image: bytes, fuente: str = "foto") -> dict:
+    def enroll(self, rid: str, image: bytes, fuente: str = "foto", photo_path: str | None = None) -> dict:
         if not self.available:
             return {"ok": False, "error": "Reconocimiento facial no disponible (faltan modelos)."}
         img = self.decode_image(image)
@@ -86,10 +86,17 @@ class IdentityService:
         faces = self.engine.detect(img)
         if len(faces) != 1:
             return {"ok": False, "error": f"Se necesita exactamente una cara en la foto (encontré {len(faces)})."}
-        emb = self.engine.embed(img, faces[0])
-        store.add_embedding(rid, emb, fuente)
+        face = faces[0]
+        emb = self.engine.embed(img, face)
+        # Score contra las plantillas previas de la misma persona: sirve para ver si la foto es consistente.
+        with self._lock:
+            previas = self._gallery.get(rid, [])
+        from .faces.arcface import cosine
+        consistencia = round(max(cosine(emb, e) for e in previas), 3) if previas else None
+        eid = store.add_embedding(rid, emb, fuente, photo_path)
         self.reload_gallery()
-        return {"ok": True, "n_embeddings": store.count_embeddings(rid)}
+        return {"ok": True, "id": eid, "n_embeddings": store.count_embeddings(rid),
+                "tamano_px": int(min(face.width, face.height)), "consistencia": consistencia}
 
     # ------------------------------------------------------------------ observación
     def observe(self, image: bytes) -> IdentityResult:

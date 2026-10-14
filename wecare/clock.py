@@ -6,12 +6,25 @@ para mostrar la escena "¿qué tengo después de merendar?" a cualquier hora rea
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+import logging
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import settings
 
-_TZ = ZoneInfo(settings.timezone)
+log = logging.getLogger(__name__)
+
+
+def _load_tz():
+    try:
+        return ZoneInfo(settings.timezone)
+    except ZoneInfoNotFoundError:
+        # Windows no trae la base IANA; si falta el paquete `tzdata`, usamos un offset fijo.
+        log.warning("Zona horaria %s no disponible (instalá el paquete tzdata). Uso UTC-3 fijo.", settings.timezone)
+        return timezone(timedelta(hours=-3), "ART")
+
+
+_TZ = _load_tz()
 _override: datetime | None = None
 _override_set_at: datetime | None = None
 

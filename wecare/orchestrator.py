@@ -133,7 +133,8 @@ class Orchestrator:
         self._client = client
         if self._client is None and settings.claude_enabled:
             import anthropic
-            self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            headers = {"anthropic-workspace-id": settings.anthropic_workspace_id} if settings.anthropic_workspace_id else None
+            self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key, default_headers=headers)
 
     @property
     def enabled(self) -> bool:
@@ -157,6 +158,27 @@ class Orchestrator:
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
         )
+
+    def check(self) -> dict[str, Any]:
+        """Llamada mínima para diagnosticar credenciales, red y formato de la petición desde el panel."""
+        if not self.enabled:
+            return {"ok": False, "error": "ANTHROPIC_API_KEY no configurada en .env"}
+        try:
+            t0 = time.time()
+            resp = self._client.beta.messages.create(
+                model=settings.claude_model, max_tokens=64,
+                system="Respondé en una sola frase corta en castellano rioplatense.",
+                messages=[{"role": "user", "content": "Decí hola."}],
+                output_config={"effort": settings.claude_effort},
+                betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+            )
+            text = " ".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+            return {"ok": True, "modelo": resp.model, "respuesta": text, "ms": int((time.time() - t0) * 1000)}
+        except Exception as e:  # noqa: BLE001
+            detail = getattr(e, "message", None) or str(e)
+            body = getattr(e, "body", None)
+            return {"ok": False, "tipo": type(e).__name__, "status": getattr(e, "status_code", None),
+                    "error": detail, "detalle": body}
 
     def open(self, session: Session) -> Reply:
         session.opened = True

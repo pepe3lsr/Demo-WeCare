@@ -75,10 +75,27 @@ def verify_pin(rid: str, pin: str) -> bool:
 
 # ----------------------------------------------------------------------------- biometría
 
-def add_embedding(rid: str, vec: np.ndarray, fuente: str = "foto") -> None:
+def add_embedding(rid: str, vec: np.ndarray, fuente: str = "foto", photo_path: str | None = None) -> int:
     vec = np.asarray(vec, dtype=np.float32)
-    get_db().execute("INSERT INTO face_embeddings (resident_id, embedding, dim, fuente) VALUES (?, ?, ?, ?)",
-                     (rid, vec.tobytes(), int(vec.shape[0]), fuente))
+    return get_db().execute(
+        "INSERT INTO face_embeddings (resident_id, embedding, dim, fuente, photo_path, creado) VALUES (?, ?, ?, ?, ?, ?)",
+        (rid, vec.tobytes(), int(vec.shape[0]), fuente, photo_path, ts_str()))
+
+
+def list_embeddings(rid: str) -> list[dict[str, Any]]:
+    return get_db().query("SELECT id, fuente, photo_path, creado FROM face_embeddings WHERE resident_id = ? ORDER BY id",
+                          (rid,))
+
+
+def get_embedding(eid: int) -> dict[str, Any] | None:
+    return get_db().one("SELECT id, resident_id, fuente, photo_path, creado FROM face_embeddings WHERE id = ?", (eid,))
+
+
+def delete_embedding(eid: int) -> dict[str, Any] | None:
+    row = get_embedding(eid)
+    if row:
+        get_db().execute("DELETE FROM face_embeddings WHERE id = ?", (eid,))
+    return row
 
 
 def count_embeddings(rid: str) -> int:
@@ -86,8 +103,10 @@ def count_embeddings(rid: str) -> int:
     return int(row["n"]) if row else 0
 
 
-def delete_embeddings(rid: str) -> None:
+def delete_embeddings(rid: str) -> list[dict[str, Any]]:
+    rows = list_embeddings(rid)
     get_db().execute("DELETE FROM face_embeddings WHERE resident_id = ?", (rid,))
+    return rows
 
 
 def load_gallery() -> dict[str, list[np.ndarray]]:

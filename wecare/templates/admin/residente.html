@@ -39,21 +39,31 @@
     {% elif not flags.facial %}
       <p class="muted">Los modelos faciales no están instalados: <code>python scripts/download_models.py</code>.</p>
     {% else %}
-      <p>Plantillas cargadas: <b id="n-emb">{{ r.n_embeddings }}</b>. Con 2 o 3 fotos (de frente, con buena luz) alcanza.
-        {% if not r.consentimiento_facial %}<span class="badge bad">Sin consentimiento: no se usa para reconocer</span>{% endif %}</p>
-      <video id="enrol-cam" class="enrol" autoplay playsinline muted></video><canvas id="enrol-canvas" width="640" height="480" hidden></canvas>
+      {% if not r.consentimiento_facial %}<p><span class="badge bad">Sin consentimiento firmado: las plantillas se guardan pero NO se usan para reconocer</span></p>{% endif %}
+      <p class="muted">Pará a la persona donde va a usar el tótem, con luz de frente. Cuando el recuadro esté <b style="color:#2e7d4f">verde</b>, tomá la foto. Con 2 o 3 fotos (frente, leve giro a cada lado) alcanza.</p>
+
+      <div class="cam-wrap">
+        <video id="enrol-cam" class="enrol" autoplay playsinline muted></video>
+        <canvas id="enrol-overlay" class="enrol-overlay" width="640" height="480"></canvas>
+      </div>
+      <canvas id="enrol-canvas" width="640" height="480" hidden></canvas>
+      <p id="enrol-status" class="status-line">Cámara apagada.</p>
       <div style="margin:0.6rem 0;display:flex;gap:0.5rem;flex-wrap:wrap">
         <button type="button" id="btn-cam">Encender cámara</button>
-        <button type="button" id="btn-shot" class="secondary" disabled>Tomar foto y enrolar</button>
+        <button type="button" id="btn-shot" disabled>📸 Tomar foto y enrolar</button>
       </div>
       <form id="enrol-file" enctype="multipart/form-data" class="row">
         <label>o subir una foto <input type="file" name="foto" accept="image/*"></label>
         <button class="secondary">Enrolar foto</button>
       </form>
       <p id="enrol-msg" class="muted"></p>
-      <form method="post" action="/admin/residentes/{{ r.id }}/borrar-plantillas" onsubmit="return confirm('¿Borrar todas las plantillas faciales de {{ r.nombre_preferido }}?')">
-        <button class="danger small">Borrar plantillas</button>
+
+      <h2>Plantillas guardadas (<span id="n-emb">{{ r.n_embeddings }}</span>)</h2>
+      <div id="gallery" class="gallery"><span class="muted">Cargando…</span></div>
+      <form method="post" action="/admin/residentes/{{ r.id }}/borrar-plantillas" style="margin-top:0.6rem" onsubmit="return confirm('¿Borrar TODAS las plantillas faciales de {{ r.nombre_preferido }}?')">
+        <button class="danger small">Borrar todas</button>
       </form>
+
       <h2>Credencial QR</h2>
       <p class="muted">Alternativa no biométrica: imprimir y mostrar a la cámara del tótem. Equivale al PIN.</p>
       {% if r.pin %}<img src="/admin/residentes/{{ r.id }}/qr.png" alt="QR" width="180">{% else %}<p class="muted">Definí un PIN para generar el QR.</p>{% endif %}
@@ -61,28 +71,113 @@
   </div>
 </div>
 
+<style>
+.cam-wrap { position: relative; width: 420px; max-width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 10px; overflow: hidden; }
+.cam-wrap video, .cam-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+.status-line { margin: 0.5rem 0 0; font-weight: 600; }
+.status-line.ok { color: #2e7d4f; } .status-line.warn { color: #7a5a00; } .status-line.bad { color: #b3261e; }
+.gallery { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.gallery .tpl { width: 120px; text-align: center; font-size: 0.75rem; color: #5b6675; }
+.gallery .tpl img, .gallery .tpl .noimg { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; background: #e9eef3; display: block; }
+.gallery .tpl .noimg { display: flex; align-items: center; justify-content: center; }
+.gallery .tpl button { margin-top: 0.3rem; }
+</style>
 <script>
 (() => {
   const cam = document.getElementById("enrol-cam"); if (!cam) return;
-  const canvas = document.getElementById("enrol-canvas"), msg = document.getElementById("enrol-msg");
+  const RID = "{{ r.id }}";
+  const overlay = document.getElementById("enrol-overlay"), octx = overlay.getContext("2d");
+  const canvas = document.getElementById("enrol-canvas"), ctx = canvas.getContext("2d");
+  const msg = document.getElementById("enrol-msg"), status = document.getElementById("enrol-status");
   const btnCam = document.getElementById("btn-cam"), btnShot = document.getElementById("btn-shot");
-  const url = "/admin/residentes/{{ r.id }}/enrolar";
+  let live = false, ready = false;
+
+  function setStatus(text, cls) { status.textContent = text; status.className = "status-line " + (cls || ""); }
+
+  function drawBox(box, color, label) {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    if (!box) return;
+    const [x1, y1, x2, y2] = box;
+    octx.lineWidth = 4; octx.strokeStyle = color; octx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    if (label) {
+      // El canvas está espejado: dibujamos el texto desespejado para que se lea.
+      octx.save(); octx.translate(x2, y1 - 8); octx.scale(-1, 1);
+      octx.font = "bold 20px sans-serif"; octx.fillStyle = color; octx.fillText(label, 0, 0); octx.restore();
+    }
+  }
+
+  async function frameBlob() {
+    if (!cam.videoWidth) return null;
+    ctx.drawImage(cam, 0, 0, canvas.width, canvas.height);
+    return new Promise(r => canvas.toBlob(r, "image/jpeg", 0.85));
+  }
+
+  async function loop() {
+    if (!live) return;
+    try {
+      const blob = await frameBlob();
+      if (blob) {
+        const fd = new FormData(); fd.append("image", blob, "f.jpg");
+        const r = await (await fetch("/api/detect", { method: "POST", body: fd })).json();
+        const size = r.face_box ? Math.round(Math.min(r.face_box[2] - r.face_box[0], r.face_box[3] - r.face_box[1])) : 0;
+        if (r.n_faces === 0) { ready = false; drawBox(null); setStatus("No veo ninguna cara. Acercate y mirá a la cámara, con luz de frente.", "bad"); }
+        else if (r.n_faces > 1) { ready = false; drawBox(r.face_box, "#d08a00", "Varias caras"); setStatus(`Veo ${r.n_faces} caras: tiene que quedar una sola en cuadro.`, "warn"); }
+        else if (size < 90) { ready = false; drawBox(r.face_box, "#d08a00", `${size}px`); setStatus(`Cara detectada pero chica (${size}px). Acercate un poco más.`, "warn"); }
+        else {
+          ready = true;
+          const quien = r.candidate_id ? (r.candidate_id === RID ? `Te reconozco (${r.score})` : `¡Ojo! parece ${r.candidate_id} (${r.score})`) : "Lista para enrolar";
+          drawBox(r.face_box, r.candidate_id && r.candidate_id !== RID ? "#b3261e" : "#2e7d4f", quien);
+          setStatus(`Cara detectada (${size}px). ${quien}.`, r.candidate_id && r.candidate_id !== RID ? "bad" : "ok");
+        }
+        btnShot.disabled = !ready;
+      }
+    } catch (e) { setStatus("Error consultando la cámara: " + e.message, "bad"); }
+    setTimeout(loop, 700);
+  }
+
   btnCam.onclick = async () => {
-    try { cam.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } }); btnShot.disabled = false; }
-    catch (e) { msg.textContent = "No pude abrir la cámara: " + e.message; }
+    try {
+      cam.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      live = true; btnCam.textContent = "Cámara encendida"; btnCam.disabled = true; setStatus("Buscando una cara…");
+      setTimeout(loop, 600);
+    } catch (e) { setStatus("No pude abrir la cámara: " + e.message, "bad"); }
   };
+
   async function enviar(fd) {
     msg.textContent = "Procesando…";
-    const res = await fetch(url, { method: "POST", body: fd });
+    const res = await fetch(`/admin/residentes/${RID}/enrolar`, { method: "POST", body: fd });
     const data = await res.json();
-    if (data.ok) { msg.textContent = "✔ Plantilla guardada."; document.getElementById("n-emb").textContent = data.n_embeddings; }
-    else msg.textContent = "✖ " + (data.error || "No se pudo enrolar");
+    if (data.ok) {
+      msg.textContent = `✔ Plantilla ${data.n_embeddings} guardada (cara de ${data.tamano_px}px` +
+        (data.consistencia != null ? `, parecido con las anteriores: ${data.consistencia}` : "") + ").";
+      document.getElementById("n-emb").textContent = data.n_embeddings;
+      loadGallery();
+    } else msg.textContent = "✖ " + (data.error || "No se pudo enrolar");
   }
   btnShot.onclick = () => {
-    canvas.getContext("2d").drawImage(cam, 0, 0, canvas.width, canvas.height);
-    const fd = new FormData(); fd.append("captura", canvas.toDataURL("image/jpeg", 0.9)); enviar(fd);
+    if (!ready) return;
+    const fd = new FormData(); fd.append("captura", canvas.toDataURL("image/jpeg", 0.92)); enviar(fd);
   };
   document.getElementById("enrol-file").onsubmit = (e) => { e.preventDefault(); enviar(new FormData(e.target)); };
+
+  async function loadGallery() {
+    const g = document.getElementById("gallery");
+    const { plantillas } = await (await fetch(`/admin/residentes/${RID}/plantillas`)).json();
+    if (!plantillas.length) { g.innerHTML = '<span class="muted">Todavía no hay plantillas. Sin fotos, el tótem no puede reconocer a esta persona.</span>'; return; }
+    g.innerHTML = plantillas.map(p => `
+      <div class="tpl" data-id="${p.id}">
+        ${p.foto ? `<img src="/admin/plantillas/${p.id}/foto?t=${Date.now()}" alt="plantilla ${p.id}">` : `<div class="noimg">sin foto</div>`}
+        <div>#${p.id} · ${p.fuente}<br>${p.creado.slice(0, 16).replace("T", " ")}</div>
+        <button class="small danger" type="button" data-del="${p.id}">Borrar</button>
+      </div>`).join("");
+  }
+  document.getElementById("gallery").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-del]"); if (!b) return;
+    if (!confirm("¿Borrar esta plantilla?")) return;
+    const r = await (await fetch(`/admin/plantillas/${b.dataset.del}/borrar`, { method: "POST" })).json();
+    document.getElementById("n-emb").textContent = r.n_embeddings; loadGallery();
+  });
+  loadGallery();
 })();
 </script>
 {% endblock %}

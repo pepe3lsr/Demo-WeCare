@@ -85,9 +85,34 @@
     }
   }
 
+  const DEBUG = new URLSearchParams(location.search).has("debug");
+  if (DEBUG) { const d = document.createElement("div"); d.id = "debug"; d.className = "debug"; document.body.appendChild(d); }
+
+  const octx = $("cam-overlay").getContext("2d");
+  function drawFace(r) {
+    octx.clearRect(0, 0, 640, 480);
+    const label = $("cam-label");
+    if (!r.face_box) { label.textContent = FACIAL ? "Buscando una cara…" : ""; label.className = "cam-label"; return; }
+    let color = "#d08a00", cls = "busca", text = "Reconociendo…";
+    if (session && session.nombre) { color = "#2e7d4f"; cls = "ok"; text = `Hola, ${session.nombre}`; }
+    else if (session) { color = "#2e7d4f"; cls = "ok"; text = "Modo general"; }
+    else if (r.n_faces > 1) { color = "#b3261e"; cls = "varias"; text = "Veo varias personas"; }
+    else if (r.candidate) { color = "#2e7d4f"; cls = "ok"; text = "¡Casi! un segundo…"; }
+    else if (!FACIAL) { text = "Cara detectada"; }
+    else { text = "No te reconozco todavía"; }
+    const [x1, y1, x2, y2] = r.face_box;
+    octx.lineWidth = 5; octx.strokeStyle = color; octx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    label.textContent = text; label.className = "cam-label " + cls;
+  }
+
   function handleObservation(r) {
     const ojo = $("ojo");
     ojo.className = "ojo" + (r.n_faces > 1 ? " varias" : r.n_faces === 1 ? " ve" : "");
+    drawFace(r);
+    if (DEBUG) {
+      const box = r.face_box ? `${Math.round(r.face_box[2] - r.face_box[0])}px` : "–";
+      $("debug").textContent = `caras: ${r.n_faces} · tamaño: ${box} · candidato: ${r.candidate ? "sí" : "no"} · score: ${r.score ?? "–"} · sesión: ${r.session ? (r.session.nombre || "general") : "–"}`;
+    }
     if (session) {
       if (!r.session) { goIdle(); return; }           // la persona se fue
       session = { ...session, ...r.session };

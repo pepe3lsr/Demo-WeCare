@@ -136,6 +136,14 @@ def api_status():
     return status_flags()
 
 
+@app.post("/api/detect")
+async def api_detect(image: UploadFile = File(...)):
+    """Sólo diagnóstico: qué ve la cámara (sin abrir sesión ni registrar nada)."""
+    res = svc.identity.observe(await image.read())
+    return {"n_faces": res.n_faces, "face_box": res.face_box, "candidate_id": res.candidate_id,
+            "score": res.score, "qr": bool(res.qr_resident_id), "facial": svc.identity.available}
+
+
 @app.post("/api/observe")
 async def api_observe(kiosk_id: str = Form("kiosk-1"), session_id: str | None = Form(None),
                       image: UploadFile = File(...)):
@@ -349,18 +357,53 @@ async def admin_enroll(rid: str, foto: UploadFile | None = File(None), captura: 
         fuente = "foto"
     else:
         raise HTTPException(400, "Falta la imagen")
-    res = svc.identity.enroll(rid, data, fuente)
-    if not res.get("ok"):
-        return JSONResponse(res, status_code=422)
     photos = settings.photos_dir / rid
     photos.mkdir(parents=True, exist_ok=True)
-    (photos / f"{datetime.now().strftime('%Y%m%d-%H%M%S')}.jpg").write_bytes(data)
+    photo = photos / f"{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.jpg"
+    photo.write_bytes(data)
+    res = svc.identity.enroll(rid, data, fuente, photo_path=str(photo))
+    if not res.get("ok"):
+        photo.unlink(missing_ok=True)
+        return JSONResponse(res, status_code=422)
     return res
+
+
+def _remove_photo(row: dict[str, Any] | None) -> None:
+    if row and row.get("photo_path"):
+        try:
+            Path(row["photo_path"]).unlink(missing_ok=True)
+        except OSError:
+            log.warning("No pude borrar la foto %s", row["photo_path"])
+
+
+@app.get("/admin/residentes/{rid}/plantillas")
+def admin_templates(rid: str):
+    return {"plantillas": [{"id": e["id"], "fuente": e["fuente"], "creado": e["creado"],
+                            "foto": bool(e["photo_path"] and Path(e["photo_path"]).exists())}
+                           for e in store.list_embeddings(rid)]}
+
+
+@app.get("/admin/plantillas/{eid}/foto")
+def admin_template_photo(eid: int):
+    row = store.get_embedding(eid)
+    if not row or not row.get("photo_path") or not Path(row["photo_path"]).exists():
+        raise HTTPException(404)
+    return Response(Path(row["photo_path"]).read_bytes(), media_type="image/jpeg",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.post("/admin/plantillas/{eid}/borrar")
+def admin_template_delete(eid: int):
+    row = store.delete_embedding(eid)
+    _remove_photo(row)
+    svc.identity.reload_gallery()
+    return {"ok": True, "n_embeddings": store.count_embeddings(row["resident_id"]) if row else 0}
 
 
 @app.post("/admin/residentes/{rid}/borrar-plantillas")
 def admin_delete_templates(rid: str):
-    store.delete_embeddings(rid)
+    for row in store.delete_embeddings(rid):
+        _remove_photo(row)
     svc.identity.reload_gallery()
     return RedirectResponse(f"/admin/residentes/{rid}", status_code=303)
 
@@ -459,3 +502,8 @@ def admin_suggestion_state(sid: int, estado: str = Form(...)):
 @app.get("/admin/voz/probar")
 def admin_voice_check():
     return svc.voice.check()
+
+
+@app.get("/admin/asistente/probar")
+def admin_assistant_check():
+    return svc.orchestrator.check()

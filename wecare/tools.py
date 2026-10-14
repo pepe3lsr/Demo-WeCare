@@ -54,8 +54,8 @@ TOOLS: list[dict[str, Any]] = [
         "strict": True,
         "input_schema": {
             "type": "object",
-            "properties": {"dias": {"type": "integer", "minimum": 1, "maximum": 14,
-                                    "description": "Horizonte en días a partir de hoy."}},
+            "properties": {"dias": {"type": "integer",
+                                    "description": "Horizonte en días a partir de hoy (entre 1 y 14)."}},
             "required": ["dias"],
             "additionalProperties": False,
         },

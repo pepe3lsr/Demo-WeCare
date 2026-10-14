@@ -89,7 +89,11 @@
     </form>
   </dialog>
 
-  <video id="cam" autoplay playsinline muted></video>
+  <div id="cam-wrap" class="cam-wrap">
+    <video id="cam" autoplay playsinline muted></video>
+    <canvas id="cam-overlay" width="640" height="480"></canvas>
+    <div id="cam-label" class="cam-label"></div>
+  </div>
   <canvas id="frame" width="640" height="480" hidden></canvas>
 </div>
 <script src="/static/kiosk.js"></script>

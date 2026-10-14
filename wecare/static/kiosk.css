@@ -98,12 +98,19 @@ dialog::backdrop { background: rgba(31, 42, 55, 0.45); }
 .error { color: var(--alerta); font-size: 0.8em; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
 
-#cam { position: fixed; right: 1rem; bottom: 1rem; width: 160px; border-radius: 14px; opacity: 0.85; transform: scaleX(-1); box-shadow: var(--sombra); }
+.cam-wrap { position: fixed; right: 1rem; bottom: 1rem; width: 240px; aspect-ratio: 4/3; border-radius: 14px; overflow: hidden; box-shadow: var(--sombra); background: #000; }
+.cam-wrap video, .cam-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(-1); object-fit: cover; }
+.cam-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 0.25em 0.6em; font-size: 15px; font-weight: 700; color: #fff; background: rgba(31,42,55,0.75); text-align: center; min-height: 1.6em; }
+.cam-label.busca { background: rgba(208,138,0,0.85); }
+.cam-label.ok { background: rgba(46,125,79,0.9); }
+.cam-label.varias { background: rgba(179,38,30,0.85); }
 
 @media (max-width: 700px) {
   .grid { grid-template-columns: 1fr; }
   .cards { grid-template-columns: 1fr; }
   .card.visita, .card.ayuda, .card.menu, .card.privacidad, .card.gracias, .card.sugerencia { grid-column: span 1; }
   .controles { grid-template-columns: 1fr; }
-  #cam { width: 100px; }
+  .cam-wrap { width: 150px; }
 }
+
+.debug { position: fixed; left: 1rem; bottom: 1rem; background: rgba(31,42,55,0.85); color: #fff; font: 14px/1.4 monospace; padding: 0.4em 0.8em; border-radius: 8px; z-index: 50; }

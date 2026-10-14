@@ -67,3 +67,24 @@ def test_admin_edita_agenda_y_menu(client):
 def test_voz_y_asr_sin_clave_devuelven_503(client):
     assert client.post("/api/tts", json={"text": "hola"}).status_code == 503
     assert client.post("/api/asr", files={"audio": ("a.wav", b"x", "audio/wav")}).status_code == 503
+
+
+def test_detect_y_plantillas_sin_modelos(client):
+    # Sin modelos cargados el diagnóstico responde igual (sin caras) y la gestión de plantillas funciona.
+    r = client.post("/api/detect", files={"image": ("f.jpg", b"\xff\xd8\xff\xd9", "image/jpeg")}).json()
+    assert r["n_faces"] == 0 and "facial" in r
+    assert client.get("/admin/residentes/marta/plantillas").json() == {"plantillas": []}
+    assert client.get("/admin/plantillas/999/foto").status_code == 404
+
+
+def test_borrar_plantilla_individual(client, tmp_path):
+    import numpy as np
+    foto = tmp_path / "a.jpg"
+    foto.write_bytes(b"x")
+    eid = store.add_embedding("marta", np.ones(512, dtype=np.float32), "foto", str(foto))
+    store.add_embedding("marta", np.ones(512, dtype=np.float32), "foto", None)
+    assert len(client.get("/admin/residentes/marta/plantillas").json()["plantillas"]) == 2
+    r = client.post(f"/admin/plantillas/{eid}/borrar").json()
+    assert r["ok"] and r["n_embeddings"] == 1 and not foto.exists()
+    r = client.post("/admin/residentes/marta/borrar-plantillas", follow_redirects=False)
+    assert r.status_code == 303 and store.count_embeddings("marta") == 0
