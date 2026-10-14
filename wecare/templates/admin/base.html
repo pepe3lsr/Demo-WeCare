@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Panel{% endblock %} · WeCare</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%231f2a37'/%3E%3Ctext x='50' y='66' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif'%3EW%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <a class="brand" href="/admin">WeCare · Panel</a>
+    <a href="/admin" class="{{ 'active' if active == 'dashboard' }}">Inicio y métricas</a>
+    <a href="/admin/residentes" class="{{ 'active' if active in ('residentes', 'residente') }}">Residentes</a>
+    <a href="/admin/agenda" class="{{ 'active' if active == 'agenda' }}">Agenda y visitas</a>
+    <a href="/admin/menu" class="{{ 'active' if active == 'menu' }}">Menú</a>
+    <a href="/admin/sugerencias" class="{{ 'active' if active == 'sugerencias' }}">Sugerencias y ayuda</a>
+    <a href="/admin/registro" class="{{ 'active' if active == 'registro' }}">Registro</a>
+    <a href="/" target="_blank">Abrir tótem ↗</a>
+    <div class="flags">
+      <div><span class="dot {{ 'on' if flags.facial else 'off' }}"></span>Reconocimiento facial</div>
+      <div><span class="dot {{ 'on' if flags.claude else 'off' }}"></span>Asistente (Claude)</div>
+      <div><span class="dot {{ 'on' if flags.voz else 'off' }}"></span>Voz (Fish Audio)</div>
+      <div><span class="dot {{ 'on' if flags.hora_demo else '' }}"></span>Hora {{ 'de demo' if flags.hora_demo else 'real' }}: {{ ahora.strftime('%d/%m %H:%M') }}</div>
+    </div>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

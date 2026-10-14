@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% block title %}Residentes{% endblock %}
+{% block content %}
+<h1>Residentes</h1>
+<p class="muted">Perfiles ficticios de la demo. El tótem sólo recibe el nombre preferido, las preferencias de comunicación y los intereses autorizados; nunca información clínica.</p>
+<table>
+  <tr><th>Nombre</th><th>Hab.</th><th>Trato</th><th>Ritmo</th><th>Consentimiento facial</th><th>Plantillas</th><th>PIN</th><th>Activo</th><th></th></tr>
+  {% for r in residentes %}
+  <tr>
+    <td><a href="/admin/residentes/{{ r.id }}">{{ r.nombre_preferido }}</a> <span class="muted">({{ r.id }})</span></td>
+    <td>{{ r.habitacion or '' }}</td><td>{{ r.tratamiento }}</td><td>{{ r.ritmo }}</td>
+    <td>{% if r.consentimiento_facial %}<span class="badge ok">sí</span>{% else %}<span class="badge">no</span>{% endif %}</td>
+    <td>{% if r.n_embeddings %}<span class="badge ok">{{ r.n_embeddings }}</span>{% else %}<span class="badge warn">sin fotos</span>{% endif %}</td>
+    <td>{{ r.pin or '–' }}</td>
+    <td>{{ 'sí' if r.activo else 'no' }}</td>
+    <td><a class="btn small secondary" href="/admin/residentes/{{ r.id }}">Editar / enrolar</a></td>
+  </tr>
+  {% endfor %}
+</table>
+<p style="margin-top:1rem"><a class="btn" href="/admin/residentes/nuevo">+ Nuevo residente</a></p>
+{% endblock %}

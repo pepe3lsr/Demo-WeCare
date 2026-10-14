@@ -1,0 +1,96 @@
+{% extends "admin/base.html" %}
+{% block title %}Agenda{% endblock %}
+{% block content %}
+<h1>Agenda, visitas y salidas</h1>
+<form class="row" method="get" action="/admin/agenda">
+  <label>Fecha <input type="date" name="fecha" value="{{ fecha }}"></label>
+  <button class="secondary">Ver</button>
+  <span class="muted">Lo que cambies acá lo ve el tótem en la próxima consulta, sin reiniciar.</span>
+</form>
+
+<h2>Agenda institucional</h2>
+<table>
+  <tr><th>Hora</th><th>Actividad</th><th>Tipo</th><th>Lugar</th><th>Inscriptos</th><th>Estado</th><th></th></tr>
+  {% for e in eventos %}
+  <tr class="{{ 'pasado' if e.pasado }} {{ 'cancelado' if e.estado == 'cancelado' }}">
+    <td>{{ e.hora }}{% if e.hora_fin %}–{{ e.hora_fin }}{% endif %}</td>
+    <td>{{ e.titulo }}{% if e.detalle %}<div class="muted">{{ e.detalle }}</div>{% endif %}</td>
+    <td>{{ e.tipo }}</td><td>{{ e.lugar or '' }}</td>
+    <td>{{ e.participantes | join(', ') or 'todos' }}</td>
+    <td><span class="badge {{ 'ok' if e.estado == 'confirmado' else 'warn' if e.estado == 'tentativo' else 'bad' }}">{{ e.estado_label }}</span></td>
+    <td style="white-space:nowrap">
+      <button class="small secondary" type="button" onclick='editar({{ e | tojson }})'>Editar</button>
+      <form class="inline" method="post" action="/admin/agenda/{{ e.id }}/estado"><input type="hidden" name="fecha" value="{{ fecha }}">
+        <button class="small secondary" name="estado" value="{{ 'confirmado' if e.estado != 'confirmado' else 'cancelado' }}">{{ 'Confirmar' if e.estado != 'confirmado' else 'Cancelar' }}</button></form>
+      <form class="inline" method="post" action="/admin/agenda/{{ e.id }}/borrar" onsubmit="return confirm('¿Borrar?')"><input type="hidden" name="fecha" value="{{ fecha }}"><button class="small danger">Borrar</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="7" class="muted">Sin eventos este día.</td></tr>{% endfor %}
+</table>
+
+<h2>Eventos personales (visitas, salidas)</h2>
+<table>
+  <tr><th>Hora</th><th>Residente</th><th>Evento</th><th>Tipo</th><th>Con quién</th><th>Lugar / punto de encuentro</th><th>Estado</th><th></th></tr>
+  {% for e in personales %}
+  <tr class="{{ 'cancelado' if e.estado == 'cancelado' }}">
+    <td>{{ e.inicio[11:16] }}{% if e.fin %}–{{ e.fin[11:16] }}{% endif %}</td>
+    <td>{{ e.nombre_preferido }}</td>
+    <td>{{ e.titulo }}{% if e.detalle %}<div class="muted">{{ e.detalle }}</div>{% endif %}{% if e.avisar_equipo %}<div class="badge warn">avisar al equipo</div>{% endif %}</td>
+    <td>{{ e.tipo }}</td>
+    <td>{{ e.visitante or '' }} {% if e.visitante %}<span class="muted">({{ 'se muestra' if e.mostrar_visitante else 'oculto' }})</span>{% endif %}</td>
+    <td>{{ e.lugar or '' }}{% if e.punto_encuentro and e.punto_encuentro != e.lugar %} · {{ e.punto_encuentro }}{% endif %}</td>
+    <td><span class="badge {{ 'ok' if e.estado == 'confirmado' else 'warn' if e.estado == 'tentativo' else 'bad' }}">{{ e.estado }}</span></td>
+    <td style="white-space:nowrap">
+      <button class="small secondary" type="button" onclick='editar({{ e | tojson }})'>Editar</button>
+      <form class="inline" method="post" action="/admin/agenda/{{ e.id }}/estado"><input type="hidden" name="fecha" value="{{ fecha }}">
+        {% if e.estado == 'tentativo' %}<button class="small secondary" name="estado" value="confirmado">Confirmar</button>{% endif %}
+        <button class="small secondary" name="estado" value="{{ 'cancelado' if e.estado != 'cancelado' else 'confirmado' }}">{{ 'Cancelar' if e.estado != 'cancelado' else 'Reactivar' }}</button></form>
+      <form class="inline" method="post" action="/admin/agenda/{{ e.id }}/borrar" onsubmit="return confirm('¿Borrar?')"><input type="hidden" name="fecha" value="{{ fecha }}"><button class="small danger">Borrar</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="8" class="muted">Sin eventos personales este día.</td></tr>{% endfor %}
+</table>
+
+<div class="panel" style="margin-top:1.5rem">
+  <h2 style="margin-top:0" id="form-title">Nuevo evento</h2>
+  <form method="post" action="/admin/agenda" id="ev-form">
+    <input type="hidden" name="id" id="f-id">
+    <div class="grid3">
+      <label>Título <input name="titulo" id="f-titulo" required></label>
+      <label>Tipo <select name="tipo" id="f-tipo">{% for t in ['institucional','comida','visita','salida','personal'] %}<option>{{ t }}</option>{% endfor %}</select></label>
+      <label>Residente (vacío = toda la residencia) <select name="resident_id" id="f-resident"><option value="">— todos —</option>{% for r in residentes %}<option value="{{ r.id }}">{{ r.nombre_preferido }}</option>{% endfor %}</select></label>
+      <label>Fecha <input type="date" name="fecha" id="f-fecha" value="{{ fecha }}" required></label>
+      <label>Hora inicio <input type="time" name="hora_inicio" id="f-ini" required></label>
+      <label>Hora fin <input type="time" name="hora_fin" id="f-fin"></label>
+      <label>Lugar <input name="lugar" id="f-lugar"></label>
+      <label>Estado <select name="estado" id="f-estado"><option>confirmado</option><option>tentativo</option><option>cancelado</option></select></label>
+      <label>Fuente <input name="fuente" id="f-fuente" value="panel"></label>
+      <label>Visitante / vínculo (sólo visitas y salidas) <input name="visitante" id="f-visitante" placeholder="Laura, su hija"></label>
+      <label>Punto de encuentro <input name="punto_encuentro" id="f-punto"></label>
+      <label>Detalle <input name="detalle" id="f-detalle"></label>
+    </div>
+    <div class="checks" style="margin:0.6rem 0">
+      <label><input type="checkbox" name="mostrar_visitante" id="f-mostrar"> Autorizado a mostrar el nombre del visitante</label>
+      <label><input type="checkbox" name="avisar_equipo" id="f-avisar"> Hay que avisar al equipo</label>
+    </div>
+    <div class="checks" style="margin:0.6rem 0"><span class="muted">Inscriptos (talleres institucionales con cupo):</span>
+      {% for r in residentes %}<label><input type="checkbox" name="participantes" value="{{ r.id }}" class="f-part"> {{ r.nombre_preferido }}</label>{% endfor %}
+    </div>
+    <button>Guardar</button> <button type="button" class="secondary" onclick="limpiar()">Limpiar</button>
+  </form>
+</div>
+<script>
+function limpiar() { document.getElementById("ev-form").reset(); document.getElementById("f-id").value = ""; document.getElementById("form-title").textContent = "Nuevo evento"; }
+function editar(e) {
+  const g = (id) => document.getElementById(id);
+  g("form-title").textContent = "Editar: " + e.titulo;
+  g("f-id").value = e.id; g("f-titulo").value = e.titulo; g("f-tipo").value = e.tipo; g("f-resident").value = e.resident_id || "";
+  g("f-fecha").value = e.inicio.slice(0, 10); g("f-ini").value = e.inicio.slice(11, 16); g("f-fin").value = e.fin ? e.fin.slice(11, 16) : "";
+  g("f-lugar").value = e.lugar || ""; g("f-estado").value = e.estado; g("f-fuente").value = e.fuente || "panel";
+  g("f-visitante").value = e.visitante || ""; g("f-punto").value = e.punto_encuentro || ""; g("f-detalle").value = e.detalle || "";
+  g("f-mostrar").checked = !!e.mostrar_visitante; g("f-avisar").checked = !!e.avisar_equipo;
+  document.querySelectorAll(".f-part").forEach(c => c.checked = (e.participantes || []).includes(c.value));
+  window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+}
+</script>
+{% endblock %}

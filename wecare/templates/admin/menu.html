@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% block title %}Menú{% endblock %}
+{% block content %}
+<h1>Menú del día</h1>
+<form class="row" method="get" action="/admin/menu">
+  <label>Fecha <input type="date" name="fecha" value="{{ fecha }}"></label>
+  <button class="secondary">Ver</button>
+  <span class="muted">El asistente sólo informa lo que está acá. Las alternativas por residente las decide cocina, no el tótem.</span>
+</form>
+<table>
+  <tr><th>Servicio</th><th>Plato</th><th>Para</th><th>Fuente</th><th>Actualizado</th><th></th></tr>
+  {% for m in items %}
+  <tr><td>{{ m.servicio }}</td><td>{{ m.plato }}</td><td>{{ m.nombre_preferido or 'todos' }}</td><td>{{ m.fuente }}</td><td class="muted">{{ m.actualizado[:16].replace('T', ' ') }}</td>
+    <td><form class="inline" method="post" action="/admin/menu/{{ m.id }}/borrar"><input type="hidden" name="fecha" value="{{ fecha }}"><button class="small danger">Borrar</button></form></td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Cocina no cargó el menú de este día.</td></tr>{% endfor %}
+</table>
+<div class="panel" style="margin-top:1.5rem">
+  <h2 style="margin-top:0">Cargar o reemplazar un plato</h2>
+  <form class="row" method="post" action="/admin/menu">
+    <input type="hidden" name="fecha" value="{{ fecha }}">
+    <label>Servicio <select name="servicio">{% for s in servicios %}<option>{{ s }}</option>{% endfor %}</select></label>
+    <label>Plato <input name="plato" required style="min-width:24rem"></label>
+    <label>Para <select name="resident_id"><option value="">todos</option>{% for r in residentes %}<option value="{{ r.id }}">{{ r.nombre_preferido }} (alternativa habilitada)</option>{% endfor %}</select></label>
+    <button>Guardar</button>
+  </form>
+</div>
+{% endblock %}

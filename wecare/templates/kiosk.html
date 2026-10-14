@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ flags.institucion }} · Tótem</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%231b6ca8'/%3E%3Ctext x='50' y='66' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif'%3EW%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/kiosk.css">
+</head>
+<body class="texto-grande">
+<div id="app" data-voz="{{ 'si' if flags.voz else 'no' }}" data-facial="{{ 'si' if flags.facial else 'no' }}">
+
+  <header class="topbar">
+    <div class="brand">{{ flags.institucion }}</div>
+    <div class="status">
+      <span id="hora" class="hora"></span>
+      <span id="ojo" class="ojo" title="Cámara">●</span>
+    </div>
+  </header>
+
+  <!-- ===================== PANTALLA DE ESPERA ===================== -->
+  <main id="idle" class="screen">
+    <div class="hero">
+      <h1 id="idle-title">Hola, {{ 'buen día' }}.</h1>
+      <p id="idle-sub" class="lead">Acercate al tótem para que te reconozca, o elegí una opción.</p>
+      <p id="idle-hint" class="hint hidden">No te reconocí. Podés identificarte con tu tarjeta o tu PIN, o ver la agenda general.</p>
+    </div>
+    <div class="grid">
+      <button class="big" data-action="general-agenda">📅 Ver agenda del día</button>
+      <button class="big" data-action="general-menu">🍽️ Ver menú</button>
+      <button class="big" data-action="pin">🪪 Soy residente</button>
+      <button class="big danger" data-action="help">🆘 Necesito ayuda</button>
+    </div>
+    <p class="fineprint">El reconocimiento facial es opcional y sólo funciona con consentimiento. Nada de lo que decís se graba.</p>
+  </main>
+
+  <!-- ===================== PANTALLA DE SESIÓN ===================== -->
+  <main id="session" class="screen hidden">
+    <div id="privacy" class="banner hidden">👥 Hay más personas cerca. Tu información personal queda guardada hasta que estés sola o solo, o me pidas verla igual.</div>
+    <section class="saludo">
+      <h1 id="saludo"></h1>
+      <div id="estado-voz" class="estado-voz"></div>
+    </section>
+
+    <section id="cards" class="cards"></section>
+
+    <section class="dialogo">
+      <div id="user-text" class="burbuja user hidden"></div>
+      <div id="assistant-text" class="burbuja assistant"></div>
+    </section>
+
+    <section class="controles">
+      <button id="mic" class="mic" aria-label="Hablar">
+        <span class="mic-icon">🎙️</span><span class="mic-label">Tocá para hablar</span>
+      </button>
+      <form id="text-form" class="text-form">
+        <input id="text-input" type="text" autocomplete="off" placeholder="O escribí acá…" aria-label="Escribí tu mensaje">
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+
+    <section class="acciones">
+      <button data-say="¿Me mostrás la agenda completa de hoy?">📅 Agenda completa</button>
+      <button data-say="¿Qué comemos hoy?">🍽️ ¿Qué comemos hoy?</button>
+      <button id="btn-visitas" data-say="¿Tengo visitas o salidas?" class="hidden">👨‍👩‍👧 Mis visitas</button>
+      <button class="danger" data-action="help">🆘 Necesito ayuda</button>
+      <button class="ghost" data-action="end">Terminar</button>
+    </section>
+  </main>
+
+  <!-- ===================== DIÁLOGO PIN ===================== -->
+  <dialog id="pin-dialog">
+    <form method="dialog" id="pin-form">
+      <h2>¿Quién sos?</h2>
+      <div class="pin-names">
+        {% for r in residentes %}
+        <label class="chip"><input type="radio" name="resident" value="{{ r.id }}"> {{ r.nombre }}</label>
+        {% endfor %}
+      </div>
+      <label class="pin-label">Tu PIN
+        <input id="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off">
+      </label>
+      <p id="pin-error" class="error hidden">Ese PIN no coincide. Probá de nuevo o pedí ayuda.</p>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" data-action="pin-cancel">Volver</button>
+        <button type="submit" class="primary">Entrar</button>
+      </div>
+      <p class="fineprint">También podés mostrar tu tarjeta con código QR a la cámara.</p>
+    </form>
+  </dialog>
+
+  <video id="cam" autoplay playsinline muted></video>
+  <canvas id="frame" width="640" height="480" hidden></canvas>
+</div>
+<script src="/static/kiosk.js"></script>
+</body>
+</html>

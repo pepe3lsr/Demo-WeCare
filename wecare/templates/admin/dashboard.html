@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block content %}
+<h1>{{ settings.institution_name }} · tótem</h1>
+
+{% if ayuda %}
+<div class="panel" style="border-color:#f5b5b0;background:#fff5f4">
+  <h2 style="margin-top:0;color:#b3261e">🆘 Pedidos de ayuda abiertos</h2>
+  <table>
+    <tr><th>Hora</th><th>Quién</th><th>Motivo</th><th>Origen</th><th></th></tr>
+    {% for h in ayuda %}
+    <tr><td>{{ h.ts[11:16] }}</td><td>{{ h.nombre_preferido or 'No identificado' }}{% if h.habitacion %} (hab. {{ h.habitacion }}){% endif %}</td>
+      <td>{{ h.motivo }}</td><td>{{ h.origen }}</td>
+      <td><form class="inline" method="post" action="/admin/ayuda/{{ h.id }}/atender"><button class="small">Marcar atendido</button></form></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="cards">
+  <div class="kpi"><div class="n">{{ metrics.interacciones }}</div><div class="l">interacciones</div></div>
+  <div class="kpi"><div class="n">{{ metrics.sesiones }}</div><div class="l">sesiones</div></div>
+  <div class="kpi"><div class="n">{{ metrics.reconocimiento.get('reconocido', 0) }}</div><div class="l">reconocimientos faciales</div></div>
+  <div class="kpi"><div class="n">{{ metrics.reconocimiento.get('manual', 0) + metrics.reconocimiento.get('qr', 0) }}</div><div class="l">por PIN / QR</div></div>
+  <div class="kpi"><div class="n">{{ metrics.reconocimiento.get('no_reconocido', 0) }}</div><div class="l">no reconocidos → modo general</div></div>
+  <div class="kpi"><div class="n">{{ metrics.derivaciones }}</div><div class="l">derivaciones al equipo</div></div>
+  <div class="kpi"><div class="n">{{ metrics.sugerencias }}</div><div class="l">sugerencias</div></div>
+  <div class="kpi"><div class="n">{{ metrics.latencia_media_ms or '–' }}</div><div class="l">ms de respuesta (media)</div></div>
+</div>
+
+<div class="grid2" style="margin-top:1rem">
+  <div class="panel">
+    <h2 style="margin-top:0">Hora de la demo</h2>
+    <p class="muted">Toda la agenda se calcula con esta hora. Fijala para ensayar una escena ("son las 15:40, ¿qué tengo después de merendar?").</p>
+    <form class="row" method="post" action="/admin/reloj">
+      <label>Fecha y hora <input type="datetime-local" name="hora" value="{{ ahora.strftime('%Y-%m-%dT%H:%M') }}"></label>
+      <button name="accion" value="fijar">Fijar</button>
+      <button name="accion" value="real" class="secondary">Volver a la hora real</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Temas consultados</h2>
+    {% if metrics.temas %}
+    <table>{% for t in metrics.temas %}<tr><td>{{ t.tema }}</td><td>{{ t.n }}</td></tr>{% endfor %}</table>
+    {% else %}<p class="muted">Todavía no hay interacciones.</p>{% endif %}
+    <h2>Opiniones sobre actividades</h2>
+    <p>👍 {{ metrics.feedback.get('le_gusto', 0) }} · 👎 {{ metrics.feedback.get('no_le_gusto', 0) }} · sin respuesta {{ metrics.feedback.get('no_respondio', 0) }}</p>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h2 style="margin-top:0">Sesiones activas en el tótem</h2>
+    {% if sesiones %}
+    <table><tr><th>Quién</th><th>Vía</th><th>Caras</th><th>Privacidad</th></tr>
+      {% for s in sesiones %}<tr><td>{{ s.nombre or 'Modo general' }}</td><td>{{ s.via }}</td><td>{{ s.n_faces }}</td><td>{{ 'activa' if s.privacy_mode else '–' }}</td></tr>{% endfor %}
+    </table>
+    {% else %}<p class="muted">Nadie frente al tótem.</p>{% endif %}
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Mantenimiento</h2>
+    <p class="muted">Plantillas faciales cargadas: {% for k, v in flags.galeria.items() %}{{ k }} ({{ v }}) {% else %}ninguna{% endfor %}</p>
+    <form class="inline" method="post" action="/admin/reset" onsubmit="return confirm('Esto borra agenda, menú, registros y plantillas faciales, y vuelve a cargar los datos ficticios. ¿Seguir?')">
+      <button class="danger">Reiniciar datos de la demo</button>
+    </form>
+    <a class="btn secondary" href="/admin/voz/probar" target="_blank">Probar voz</a>
+    <a class="btn secondary" href="/api/docs" target="_blank">API</a>
+  </div>
+</div>
+{% endblock %}

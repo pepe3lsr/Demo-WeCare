@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% block title %}Sugerencias y ayuda{% endblock %}
+{% block content %}
+<h1>Sugerencias, reclamos y pedidos de ayuda</h1>
+
+<h2>Pedidos de ayuda (derivaciones al equipo)</h2>
+<table>
+  <tr><th>Hora</th><th>Quién</th><th>Motivo</th><th>Origen</th><th>Estado</th><th></th></tr>
+  {% for h in ayuda %}
+  <tr><td>{{ h.ts[5:16].replace('T', ' ') }}</td><td>{{ h.nombre_preferido or 'No identificado' }}{% if h.habitacion %} (hab. {{ h.habitacion }}){% endif %}</td><td>{{ h.motivo }}</td><td>{{ h.origen }}</td>
+    <td><span class="badge {{ 'bad' if h.estado == 'abierta' else 'ok' }}">{{ h.estado }}</span>{% if h.atendida_ts %} <span class="muted">{{ h.atendida_ts[11:16] }}</span>{% endif %}</td>
+    <td>{% if h.estado == 'abierta' %}<form class="inline" method="post" action="/admin/ayuda/{{ h.id }}/atender"><button class="small">Atendido</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Sin pedidos.</td></tr>{% endfor %}
+</table>
+
+<h2>Sugerencias y reclamos</h2>
+<table>
+  <tr><th>Hora</th><th>Quién</th><th>Área</th><th>Tipo</th><th>Texto</th><th>Estado</th><th></th></tr>
+  {% for s in sugerencias %}
+  <tr><td>{{ s.ts[5:16].replace('T', ' ') }}</td><td>{{ s.nombre_preferido or 'No identificado' }}</td><td>{{ s.area }}</td>
+    <td><span class="badge {{ 'warn' if s.tipo == 'reclamo' else '' }}">{{ s.tipo }}</span></td><td>{{ s.texto }}</td><td>{{ s.estado }}</td>
+    <td><form class="inline" method="post" action="/admin/sugerencias/{{ s.id }}/estado">
+      <select name="estado" onchange="this.form.submit()">{% for o in ['nueva','en_curso','resuelta'] %}<option {{ 'selected' if s.estado == o }}>{{ o }}</option>{% endfor %}</select></form></td></tr>
+  {% else %}<tr><td colspan="7" class="muted">Sin sugerencias.</td></tr>{% endfor %}
+</table>
+{% endblock %}

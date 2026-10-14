@@ -1,0 +1,88 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ r.nombre_preferido or 'Nuevo residente' }}{% endblock %}
+{% block content %}
+<h1>{{ r.nombre_preferido or 'Nuevo residente' }}</h1>
+<div class="grid2">
+  <div class="panel">
+    <h2 style="margin-top:0">Perfil e interacción</h2>
+    <form method="post" action="/admin/residentes/{{ r.id }}">
+      <div class="grid2">
+        <label>Identificador interno <input name="id" value="{{ '' if nuevo else r.id }}" {{ 'readonly' if not nuevo }} required placeholder="p. ej. marta"></label>
+        <label>Nombre preferido <input name="nombre_preferido" value="{{ r.nombre_preferido or '' }}" required></label>
+        <label>Nombre completo (no se muestra en el tótem) <input name="nombre_completo" value="{{ r.nombre_completo or '' }}"></label>
+        <label>Habitación <input name="habitacion" value="{{ r.habitacion or '' }}"></label>
+        <label>Edad <input name="edad" type="number" value="{{ r.edad or '' }}"></label>
+        <label>PIN (identificación alternativa) <input name="pin" value="{{ r.pin or '' }}" inputmode="numeric"></label>
+        <label>Tratamiento <select name="tratamiento">{% for o in ['vos','usted'] %}<option {{ 'selected' if r.tratamiento == o }}>{{ o }}</option>{% endfor %}</select></label>
+        <label>Ritmo de conversación <select name="ritmo">{% for o in ['pausado','normal'] %}<option {{ 'selected' if r.ritmo == o }}>{{ o }}</option>{% endfor %}</select></label>
+        <label>Tamaño de texto <select name="tamano_texto">{% for o in ['normal','grande','muy_grande'] %}<option value="{{ o }}" {{ 'selected' if r.tamano_texto == o }}>{{ o.replace('_',' ') }}</option>{% endfor %}</select></label>
+        <label>Volumen (0-100) <input name="volumen" type="number" min="0" max="100" value="{{ r.volumen or 80 }}"></label>
+        <label>Nivel de detalle <select name="nivel_detalle">{% for o in ['breve','medio'] %}<option {{ 'selected' if r.nivel_detalle == o }}>{{ o }}</option>{% endfor %}</select></label>
+        <label>Voz Fish Audio (reference_id, opcional) <input name="voz_reference_id" value="{{ r.voz_reference_id or '' }}"></label>
+      </div>
+      <label>Tono <input name="tono" value="{{ r.tono or 'cálido y sencillo' }}"></label>
+      <label>Intereses autorizados para conversar (separados por coma) <input name="intereses" value="{{ r.intereses or '' }}"></label>
+      <label>Accesibilidad / forma de hablarle <textarea name="accesibilidad" rows="2">{{ r.accesibilidad or '' }}</textarea></label>
+      <label>Tipo de apoyo permitido <input name="apoyo_permitido" value="{{ r.apoyo_permitido or 'recordatorios de agenda, menú, visitas' }}"></label>
+      <div class="checks" style="margin:0.8rem 0">
+        <label><input type="checkbox" name="activo" {{ 'checked' if r.activo is not defined or r.activo }}> Perfil activo</label>
+        <label><input type="checkbox" name="consentimiento_facial" {{ 'checked' if r.consentimiento_facial }}> Consentimiento para reconocimiento facial firmado</label>
+      </div>
+      <button>Guardar</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin-top:0">Reconocimiento facial</h2>
+    {% if nuevo %}
+      <p class="muted">Guardá el perfil primero.</p>
+    {% elif not flags.facial %}
+      <p class="muted">Los modelos faciales no están instalados: <code>python scripts/download_models.py</code>.</p>
+    {% else %}
+      <p>Plantillas cargadas: <b id="n-emb">{{ r.n_embeddings }}</b>. Con 2 o 3 fotos (de frente, con buena luz) alcanza.
+        {% if not r.consentimiento_facial %}<span class="badge bad">Sin consentimiento: no se usa para reconocer</span>{% endif %}</p>
+      <video id="enrol-cam" class="enrol" autoplay playsinline muted></video><canvas id="enrol-canvas" width="640" height="480" hidden></canvas>
+      <div style="margin:0.6rem 0;display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button type="button" id="btn-cam">Encender cámara</button>
+        <button type="button" id="btn-shot" class="secondary" disabled>Tomar foto y enrolar</button>
+      </div>
+      <form id="enrol-file" enctype="multipart/form-data" class="row">
+        <label>o subir una foto <input type="file" name="foto" accept="image/*"></label>
+        <button class="secondary">Enrolar foto</button>
+      </form>
+      <p id="enrol-msg" class="muted"></p>
+      <form method="post" action="/admin/residentes/{{ r.id }}/borrar-plantillas" onsubmit="return confirm('¿Borrar todas las plantillas faciales de {{ r.nombre_preferido }}?')">
+        <button class="danger small">Borrar plantillas</button>
+      </form>
+      <h2>Credencial QR</h2>
+      <p class="muted">Alternativa no biométrica: imprimir y mostrar a la cámara del tótem. Equivale al PIN.</p>
+      {% if r.pin %}<img src="/admin/residentes/{{ r.id }}/qr.png" alt="QR" width="180">{% else %}<p class="muted">Definí un PIN para generar el QR.</p>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(() => {
+  const cam = document.getElementById("enrol-cam"); if (!cam) return;
+  const canvas = document.getElementById("enrol-canvas"), msg = document.getElementById("enrol-msg");
+  const btnCam = document.getElementById("btn-cam"), btnShot = document.getElementById("btn-shot");
+  const url = "/admin/residentes/{{ r.id }}/enrolar";
+  btnCam.onclick = async () => {
+    try { cam.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } }); btnShot.disabled = false; }
+    catch (e) { msg.textContent = "No pude abrir la cámara: " + e.message; }
+  };
+  async function enviar(fd) {
+    msg.textContent = "Procesando…";
+    const res = await fetch(url, { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.ok) { msg.textContent = "✔ Plantilla guardada."; document.getElementById("n-emb").textContent = data.n_embeddings; }
+    else msg.textContent = "✖ " + (data.error || "No se pudo enrolar");
+  }
+  btnShot.onclick = () => {
+    canvas.getContext("2d").drawImage(cam, 0, 0, canvas.width, canvas.height);
+    const fd = new FormData(); fd.append("captura", canvas.toDataURL("image/jpeg", 0.9)); enviar(fd);
+  };
+  document.getElementById("enrol-file").onsubmit = (e) => { e.preventDefault(); enviar(new FormData(e.target)); };
+})();
+</script>
+{% endblock %}

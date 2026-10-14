@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+{% block title %}Registro{% endblock %}
+{% block content %}
+<h1>Registro</h1>
+<p class="muted">Se guarda texto de las interacciones, resultado del reconocimiento y derivaciones. No se guarda audio ni video.</p>
+
+<h2>Interacciones</h2>
+<table>
+  <tr><th>Hora</th><th>Quién</th><th>Canal</th><th>Dijo</th><th>Respuesta</th><th>Herramientas</th><th>Tema</th><th>ms</th></tr>
+  {% for i in interacciones %}
+  <tr>
+    <td style="white-space:nowrap">{{ i.ts[5:16].replace('T', ' ') }}</td>
+    <td>{{ i.nombre_preferido or 'general' }}{% if i.privacidad %} <span class="badge warn">priv.</span>{% endif %}{% if i.derivado %} <span class="badge bad">derivado</span>{% endif %}</td>
+    <td>{{ i.canal }}</td>
+    <td>{{ i.entrada }}</td>
+    <td>{{ i.respuesta }}</td>
+    <td class="muted">{{ i.herramientas | join(', ') }}</td>
+    <td>{{ i.tema or '' }}</td>
+    <td class="muted">{{ i.latencia_ms or '' }}</td>
+  </tr>
+  {% else %}<tr><td colspan="8" class="muted">Sin interacciones.</td></tr>{% endfor %}
+</table>
+
+<div class="grid2" style="margin-top:1.5rem">
+  <div>
+    <h2>Reconocimiento</h2>
+    <table>
+      <tr><th>Hora</th><th>Resultado</th><th>Residente</th><th>Score</th><th>Caras</th></tr>
+      {% for r in reconocimientos %}
+      <tr><td>{{ r.ts[5:16].replace('T', ' ') }}</td><td>{{ r.resultado }}</td><td>{{ r.resident_id or '' }}</td><td>{{ '%.2f' % r.score if r.score else '' }}</td><td>{{ r.n_caras if r.n_caras is not none else '' }}</td></tr>
+      {% else %}<tr><td colspan="5" class="muted">Sin eventos.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div>
+    <h2>Opiniones sobre actividades</h2>
+    <table>
+      <tr><th>Hora</th><th>Residente</th><th>Actividad</th><th>Opinión</th><th>Comentario</th></tr>
+      {% for f in feedback %}
+      <tr><td>{{ f.ts[5:16].replace('T', ' ') }}</td><td>{{ f.nombre_preferido }}</td><td>{{ f.titulo or f.event_id }}</td><td>{{ f.valor }}</td><td>{{ f.comentario or '' }}</td></tr>
+      {% else %}<tr><td colspan="5" class="muted">Sin opiniones registradas.</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}
